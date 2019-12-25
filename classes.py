@@ -1,16 +1,18 @@
 import pygame
 import images
 import global_perms
+import random
 
 
 class Tank(pygame.sprite.Sprite):
-    def __init__(self, x, y, image_name, speed=4):
-        pygame.sprite.Sprite.__init__(self)
+    def __init__(self, x, y, image_name, *args):
+        pygame.sprite.Sprite.__init__(self, args)
         self.image_name = image_name
         self.image = images.images[image_name + '_w']
         self.rect = self.image.get_rect()
         self.rect.topleft = (x, y)
-        self.speed = speed
+        self.health = 1
+        self.speed = 4
         self.action = None
         self.bullet = None
 
@@ -47,8 +49,12 @@ class Tank(pygame.sprite.Sprite):
                 naprav_y = 1
             elif self.image == images.images[self.image_name + '_d']:
                 naprav_x = 1
-            self.bullet = Bullet(x, y, naprav_x, naprav_y, self)
-            global_perms.ALL_SPRITES.add(self.bullet)
+            self.bullet = Bullet(x, y, naprav_x, naprav_y, self, global_perms.ALL_SPRITES)
+
+    def be_attacked(self):
+        self.health -= 1
+        if self.health == 0:
+            self.kill()
 
     def check_collided(self, group_sprites):
         collided_sides = set()
@@ -73,8 +79,38 @@ class Tank(pygame.sprite.Sprite):
 
 
 class Player(Tank):
-    def __init__(self, x, y):
-        super().__init__(x, y, 'player')
+    def __init__(self, x, y, *args):
+        super().__init__(x, y, 'player', args)
+        self.start_pos = (x, y)
+        self.life = 3
+
+    def be_attacked(self):
+        self.health -= 1
+        if self.health == 0:
+            if self.life > 0:
+                self.life -= 1
+                self.rect.topleft = self.start_pos
+            else:
+                global_perms.IS_GAME_OVER = True
+
+
+class Enemy(Tank):
+    def __init__(self, x, y, *args):
+        super().__init__(x, y, 'enemy', args)
+        self.step = 0
+
+    def update(self):
+        super().update()
+        collided = self.check_collided(global_perms.WALLS)
+        if self.step == 0:
+            event = random.choice([pygame.K_s, pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_SPACE])
+            if event not in collided:
+                if event != pygame.K_SPACE:
+                    count_step = random.randrange(5)
+                    self.step = 4 * count_step
+                self.action = event
+        else:
+            self.step -= 1
 
 
 class Base(pygame.sprite.Sprite):
@@ -89,15 +125,16 @@ class Base(pygame.sprite.Sprite):
         self.health -= 1
         if self.health == 0:
             self.image = images.images["destroyed_base"]
+            global_perms.IS_GAME_OVER = True
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, naprav_x, naprav_y, player, speed=8):
-        pygame.sprite.Sprite.__init__(self)
+    def __init__(self, x, y, naprav_x, naprav_y, player, *args):
+        pygame.sprite.Sprite.__init__(self, args)
         self.image = images.images["bullet"]
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
-        self.speed = speed
+        self.speed = 8
         self.player = player
         self.naprav_x, self.naprav_y = naprav_x, naprav_y
 
@@ -105,6 +142,10 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.x += self.speed * self.naprav_x
         self.rect.y += self.speed * self.naprav_y
         self.check_collided(global_perms.DESTROY_WALLS)
+        if isinstance(self.player, Player):
+            self.check_collided(global_perms.ENEMY_GROUP)
+        else:
+            self.check_collided(global_perms.PLAYER_GROUP)
 
     def destroy(self):
         self.player.bullet = None
