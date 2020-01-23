@@ -84,13 +84,18 @@ class Player(Tank):
         self.start_pos = (x, y)
         self.life = 3
 
+    def get_lifes(self):
+        return self.life
+
     def be_attacked(self):
         self.health -= 1
         if self.health == 0:
             if self.life > 0:
+                self.health = 1
                 self.life -= 1
                 self.rect.topleft = self.start_pos
             else:
+                global_perms.GAME_RUNNING = False
                 global_perms.IS_GAME_OVER = True
 
 
@@ -119,12 +124,13 @@ class Base(pygame.sprite.Sprite):
         self.image = images.images["base"]
         self.rect = self.image.get_rect()
         self.rect.topleft = (x, y)
-        self.health = 5
+        self.health = 1
 
     def be_attacked(self):
         self.health -= 1
         if self.health == 0:
             self.image = images.images["destroyed_base"]
+            global_perms.GAME_RUNNING = False
             global_perms.IS_GAME_OVER = True
 
 

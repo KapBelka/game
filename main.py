@@ -17,6 +17,13 @@ def init_music():
     pygame.mixer.music.play()
 
 
+def clear_game_data():
+    """Очищает глобальные переменные для начала новой игры"""
+    global_perms.LEVEL_ID = 0
+    global_perms.IS_GAME_OVER = False
+    global_perms.GAME_RUNNING = True
+
+
 def clear_level_data():
     """Очищает группы спрайтов, дабы загрузить новый уровень"""
     global_perms.ALL_SPRITES = pygame.sprite.Group()
@@ -72,40 +79,86 @@ def launch_level():
     return enemy_pos, base, count_enemy
 
 
+def draw_texts(count_enemy):
+    """Отрисовывает кол-во жизней, танков и уровень"""
+    font = pygame.font.Font(None, 30)
+    text = font.render("LIFES: " + str(global_perms.PLAYER.get_lifes()), 1, (255, 255, 255))
+    text_x, text_y = 0, 0
+    global_perms.SCREEN.blit(text, (text_x, text_y))
+    #
+    text = font.render("LEVEL: " + str(global_perms.LEVEL_ID + 1), 1, (255, 255, 255))
+    text_x, text_y = global_perms.WIDTH // 2 - text.get_width() // 2, 0
+    global_perms.SCREEN.blit(text, (text_x, text_y))
+    #
+    text = font.render("TANKS: " + str(count_enemy + len(global_perms.ENEMY_GROUP)), 1,
+                       (255, 255, 255))
+    text_x, text_y = global_perms.WIDTH - text.get_width(), 0
+    global_perms.SCREEN.blit(text, (text_x, text_y))
+
+
+def update_and_draw_screen():
+    """Отвечает за обновление и отрисовывание объектов"""
+    global_perms.ALL_SPRITES.update()
+    global_perms.SCREEN.fill(pygame.Color('black'))
+    global_perms.ALL_SPRITES.draw(global_perms.SCREEN)
+
+
 def complete_game_screen():
     """Конец игры(выиграть)"""
     wait = True
     font = pygame.font.Font(None, 50)
-    text = font.render("GAME COMPLETE", 1, (255, 0, 0))
-    text_x = global_perms.WIDTH // 2 - text.get_width() // 2
-    text_y = global_perms.HEIGHT // 2 - text.get_height() // 2
-    global_perms.SCREEN.blit(text, (text_x, text_y))
+    texts = ["GAME COMPLETE", "PRESS <SPACE> TO RESTART", "PRESS <ESC> TO EXIT"]
+    for i in range(3):
+        text = font.render(texts[i], 1, (0, 255, 0))
+        text_x = global_perms.WIDTH // 2 - text.get_width() // 2
+        text_y = global_perms.HEIGHT // 2 - text.get_height() // 2 + text.get_height() * i
+        global_perms.SCREEN.blit(text, (text_x, text_y))
+    start_new_game = False
     while wait:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
             elif event.type == pygame.KEYDOWN:
-                wait = False
+                if event.key == pygame.K_SPACE:
+                    start_new_game = True
+                    wait = False
+                elif event.key == pygame.K_ESCAPE:
+                    wait = False
         pygame.display.flip()
         global_perms.CLOCK.tick(global_perms.FPS)
+    if start_new_game:
+        clear_game_data()
+        return 1
+    return 0
 
 
 def end_game_screen():
     """Конец игры(проиграть)"""
     wait = True
     font = pygame.font.Font(None, 50)
-    text = font.render("GAME END", 1, (255, 0, 0))
-    text_x = global_perms.WIDTH // 2 - text.get_width() // 2
-    text_y = global_perms.HEIGHT // 2 - text.get_height() // 2
-    global_perms.SCREEN.blit(text, (text_x, text_y))
+    texts = ["GAME END", "PRESS <SPACE> TO RESTART", "PRESS <ESC> TO EXIT"]
+    for i in range(3):
+        text = font.render(texts[i], 1, (255, 0, 0))
+        text_x = global_perms.WIDTH // 2 - text.get_width() // 2
+        text_y = global_perms.HEIGHT // 2 - text.get_height() // 2 + text.get_height() * i
+        global_perms.SCREEN.blit(text, (text_x, text_y))
+    start_new_game = False
     while wait:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
             elif event.type == pygame.KEYDOWN:
-                wait = False
+                if event.key == pygame.K_SPACE:
+                    start_new_game = True
+                    wait = False
+                elif event.key == pygame.K_ESCAPE:
+                    wait = False
         pygame.display.flip()
         global_perms.CLOCK.tick(global_perms.FPS)
+    if start_new_game:
+        clear_game_data()
+        return 1
+    return 0
 
 
 def end_level_screen():
@@ -156,7 +209,7 @@ def start_game():
     pygame.time.set_timer(time_spawn_enemy, 10000)
     global_perms.PLAYER = classes.Player(0, 0)
     enemy_pos, base, count_enemy = launch_level()
-    while not global_perms.IS_GAME_OVER:
+    while global_perms.GAME_RUNNING:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
@@ -172,8 +225,7 @@ def start_game():
                 pygame.time.set_timer(level_end_timer, 0)
                 global_perms.LEVEL_ID += 1
                 if global_perms.LEVEL_ID == global_perms.MAX_LEVEL:
-                    complete_game_screen()
-                    global_perms.IS_GAME_OVER = True
+                    global_perms.GAME_RUNNING = False
                 else:
                     end_level_screen()
                     can_end_level = True
@@ -187,17 +239,26 @@ def start_game():
                     count_enemy -= 1
             elif event.type == music_repeat:
                 pygame.mixer.music.play()
-        print(len(global_perms.ENEMY_GROUP), count_enemy, can_end_level)
         if len(global_perms.ENEMY_GROUP) == count_enemy == 0 and can_end_level:
             pygame.time.set_timer(level_end_timer, 5000)
             can_end_level = False
-        global_perms.ALL_SPRITES.update()
-        global_perms.SCREEN.fill(pygame.Color('black'))
-        global_perms.ALL_SPRITES.draw(global_perms.SCREEN)
+        update_and_draw_screen()
+        draw_texts(count_enemy)
         pygame.display.flip()
         global_perms.CLOCK.tick(global_perms.FPS)
-    end_game_screen()
+    if global_perms.IS_GAME_OVER:
+        return 1
+    else:
+        return 0
 
 
 pygame.init()
-start_game()
+game = True
+while game:
+    result_code = start_game()
+    if result_code == 1:
+        ext_code = end_game_screen()
+    else:
+        ext_code = complete_game_screen()
+    if ext_code == 0:
+        game = False
